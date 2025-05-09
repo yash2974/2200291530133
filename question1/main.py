@@ -1,9 +1,9 @@
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
+from collections import defaultdict
 
 app = FastAPI(title="Calculator API")
 
@@ -17,31 +17,41 @@ app.add_middleware(
 )
 
 # input class type for average calculation
-class StockInput(BaseModel): 
-    prices: List[float]
+class StockPrice(BaseModel): 
+    symbol: str
+    price: float
+    timestamp: datetime
+    
+class StockInput(BaseModel):
+    data: List[StockPrice]
 #using asynchronous function to handle requests concurrently
 # API endpoint for average calculation of the stock prices
 @app.post("/average_stock_prices")
 async def calculate_average(stock_data: StockInput):
     
     # Validate input data
-    if not stock_data.prices or len(stock_data.prices) == 10000:
-        # check if the input data is empty or has 10000 elements
+    if not stock_data.data:
+        # check if the input data is empty 
         raise HTTPException(status_code=400, detail="Input data is empty")
-    for price in stock_data.prices:
-        if price < 0:
+    
+    prices = []
+
+    for price_stock in stock_data.data:
+        if price_stock.price < 0:
             raise HTTPException(status_code=400, detail="Negative price found in input data")
+        prices.append(price_stock.price)
+        
         
     
     # Calculate average of the input stock prices
-    sum_of_numbers = sum(stock_data.prices)
-    average = sum_of_numbers / len(stock_data.prices)
+    sum_of_numbers = sum(prices)
+    average = sum_of_numbers / len(prices)
     
     # Return the average as the result
     return {
-        "input": stock_data.prices,
+        "input": prices,
         "result": average,
-        "count": len(stock_data.prices),
+        "count": len(prices),
         "timestamp": datetime.now(),
         "success": True # success flag
     }
@@ -51,11 +61,12 @@ async def calculate_average(stock_data: StockInput):
 async def calculate_statistics(stock_data: StockInput):
     
     # Validate input data
-    if not stock_data.prices:
+    if not stock_data.data:
         raise HTTPException(status_code=400, detail="Input data is empty")
     
+    prices = [entry.price for entry in stock_data.data]
+
     # Calculate statistics like average, min, max, count, and SD 
-    prices = stock_data.prices
     average = sum(prices) / len(prices)
     min_price = min(prices)
     max_price = max(prices)
@@ -68,9 +79,36 @@ async def calculate_statistics(stock_data: StockInput):
         "average": average,
         "min": min_price,
         "max": max_price,
-        "stdDev": sd_price,
+        "std": sd_price,
         "count": len(prices),
         "timestamp": datetime.now(),
         "success": True # success flag
     }
+
+# API endpoint for calculating the average stock prices by symbol
+@app.post("/average_by_symbol")
+async def average_by_symbol(stock_data: StockInput):
+
+    symbol_prices = defaultdict(list)
+    # Validate input data
+    for entry in stock_data.data:
+        if entry.price < 0:
+            raise HTTPException(status_code=400, detail="Negative price found")
+        symbol_prices[entry.symbol].append(entry.price)
+
+    result = {}
+    # Calculate average for each symbol
+    for symbol, prices in symbol_prices.items():
+        result[symbol] = {
+            "average": sum(prices) / len(prices),
+            "count": len(prices)
+        }
+
+    return {
+        "result": result,
+        "timestamp": datetime.now(),
+        "success": True
+    }
+
+# Various functionalities of the stock aggregation API like  Time-Based Aggregation (e.g., Daily Average can be handled by using multiple endpoints
 
