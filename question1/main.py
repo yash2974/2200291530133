@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
+from datetime import datetime
 
 app = FastAPI(title="Calculator API")
 
@@ -17,34 +18,37 @@ app.add_middleware(
 
 # input class type for average calculation
 class StockInput(BaseModel): 
-    numbers: List[float]
-#input class type for statistics calculation
-class PricesInput(BaseModel):
     prices: List[float]
-
+#using asynchronous function to handle requests concurrently
 # API endpoint for average calculation of the stock prices
 @app.post("/average_stock_prices")
 async def calculate_average(stock_data: StockInput):
     
     # Validate input data
-    if not stock_data.numbers:
+    if not stock_data.prices or len(stock_data.prices) == 10000:
+        # check if the input data is empty or has 10000 elements
         raise HTTPException(status_code=400, detail="Input data is empty")
+    for price in stock_data.prices:
+        if price < 0:
+            raise HTTPException(status_code=400, detail="Negative price found in input data")
+        
     
     # Calculate average of the input stock prices
-    sum_of_numbers = sum(stock_data.numbers)
-    average = sum_of_numbers / len(stock_data.numbers)
+    sum_of_numbers = sum(stock_data.prices)
+    average = sum_of_numbers / len(stock_data.prices)
     
     # Return the average as the result
     return {
-        "input": stock_data.numbers,
+        "input": stock_data.prices,
         "result": average,
-        "count": len(stock_data.numbers),
+        "count": len(stock_data.prices),
+        "timestamp": datetime.now(),
         "success": True # success flag
     }
 
 # API endpoint for calculating the overall statistics of the stock prices
-@app.post("/statistics")
-async def calculate_statistics(stock_data: PricesInput):
+@app.post("/statistics_stock_prices")
+async def calculate_statistics(stock_data: StockInput):
     
     # Validate input data
     if not stock_data.prices:
@@ -66,6 +70,7 @@ async def calculate_statistics(stock_data: PricesInput):
         "max": max_price,
         "stdDev": sd_price,
         "count": len(prices),
+        "timestamp": datetime.now(),
         "success": True # success flag
     }
 
